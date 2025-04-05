@@ -59,8 +59,8 @@ pub struct Repeated {
 #[test]
 fn serialize_in_struct() -> Result {
     let input = Helper {
-        field_double: Some(42.0_f64),
-        field_float: Some(42.0_f32),
+        field_double: Some(f64::INFINITY),
+        field_float: Some(f32::NAN),
         field_int64: Some(42),
         field_uint64: Some(42),
         field_int32: Some(42),
@@ -73,8 +73,8 @@ fn serialize_in_struct() -> Result {
     };
     let json = serde_json::to_value(&input)?;
     let want = json!({
-        "fieldDouble": 42_f64,
-        "fieldFloat":  42_f32,
+        "fieldDouble": "Infinity",  // Fails => serializes as Null
+        "fieldFloat":  "NaN",       // Fails => serialize as Null
         "fieldInt64":  "42",
         "fieldUint64": "42",
         "fieldInt32":  42,
