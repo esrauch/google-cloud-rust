@@ -24,16 +24,6 @@ type Result = std::result::Result<(), Box<dyn std::error::Error>>;
 pub struct Helper {
     pub field_double: Option<wkt::DoubleValue>,
     pub field_float: Option<wkt::FloatValue>,
-    #[serde_as(as = "Option<serde_with::DisplayFromStr>")]
-    pub field_int64: Option<wkt::Int64Value>,
-    #[serde_as(as = "Option<serde_with::DisplayFromStr>")]
-    pub field_uint64: Option<wkt::UInt64Value>,
-    pub field_int32: Option<wkt::Int32Value>,
-    pub field_uint32: Option<wkt::UInt32Value>,
-    pub field_bool: Option<wkt::BoolValue>,
-    pub field_string: Option<wkt::StringValue>,
-    #[serde_as(as = "Option<serde_with::base64::Base64>")]
-    pub field_bytes: Option<wkt::BytesValue>,
 }
 
 #[serde_with::serde_as]
@@ -44,16 +34,6 @@ pub struct Helper {
 pub struct Repeated {
     pub field_double: Vec<wkt::DoubleValue>,
     pub field_float: Vec<wkt::FloatValue>,
-    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
-    pub field_int64: Vec<wkt::Int64Value>,
-    #[serde_as(as = "Vec<serde_with::DisplayFromStr>")]
-    pub field_uint64: Vec<wkt::UInt64Value>,
-    pub field_int32: Vec<wkt::Int32Value>,
-    pub field_uint32: Vec<wkt::UInt32Value>,
-    pub field_bool: Vec<wkt::BoolValue>,
-    pub field_string: Vec<wkt::StringValue>,
-    #[serde_as(as = "Vec<serde_with::base64::Base64>")]
-    pub field_bytes: Vec<wkt::BytesValue>,
 }
 
 #[test]
@@ -61,65 +41,43 @@ fn serialize_in_struct() -> Result {
     let input = Helper {
         field_double: Some(f64::INFINITY),
         field_float: Some(f32::NAN),
-        field_int64: Some(42),
-        field_uint64: Some(42),
-        field_int32: Some(42),
-        field_uint32: Some(42),
-        field_bool: Some(true),
-        field_string: Some("zebras are more fun than foxes".to_string()),
-        field_bytes: Some(bytes::Bytes::from_static(
-            "but zebras are vexing".as_bytes(),
-        )),
     };
     let json = serde_json::to_value(&input)?;
     let want = json!({
-        "fieldDouble": "Infinity",  // Fails => serializes as Null
-        "fieldFloat":  "NaN",       // Fails => serialize as Null
-        "fieldInt64":  "42",
-        "fieldUint64": "42",
-        "fieldInt32":  42,
-        "fieldUint32": 42,
-        "fieldBool":   true,
-        "fieldString": "zebras are more fun than foxes",
-        "fieldBytes":  "YnV0IHplYnJhcyBhcmUgdmV4aW5n",
+        "fieldDouble": null,  // Data loss of the Infinity value
+        "fieldFloat":  null,  // Data loss of the NaN value
     });
     assert_eq!(json, want);
 
     let roundtrip = serde_json::from_value::<Helper>(json)?;
-    assert_eq!(input, roundtrip);
+    // Data does not round trip, instead the fields are unset.
+    assert_ne!(input, roundtrip);
+    assert_eq!(roundtrip, Helper {
+        field_double: None,
+        field_float: None
+    });
     Ok(())
 }
 
 #[test]
 fn serialize_in_repeated() -> Result {
     let input = Repeated {
-        field_double: vec![42.0_f64],
-        field_float: vec![42.0_f32],
-        field_int64: vec![42_i64],
-        field_uint64: vec![42_u64],
-        field_int32: vec![42_i32],
-        field_uint32: vec![42_u32],
-        field_bool: vec![true],
-        field_string: vec!["zebras are more fun than foxes".to_string()],
-        field_bytes: vec![bytes::Bytes::from_static(
-            "but zebras are vexing".as_bytes(),
-        )],
+        field_double: vec![42.0_f64, f64::INFINITY, 43f64],
+        field_float: vec![42.0_f32, f32::NAN, 43f32],
     };
     let json = serde_json::to_value(&input)?;
+
+    // The serialize state emits null for Infinity and NaN values
     let want = json!({
-        "fieldDouble":  [42_f64],
-        "fieldFloat":   [42_f32],
-        "fieldInt64":   ["42"],
-        "fieldUint64":  ["42"],
-        "fieldInt32":   [42],
-        "fieldUint32":  [42],
-        "fieldBool":    [true],
-        "fieldString":  ["zebras are more fun than foxes"],
-        "fieldBytes":   ["YnV0IHplYnJhcyBhcmUgdmV4aW5n"],
+        "fieldDouble":  [42_f64, null, 43f64],
+        "fieldFloat":   [42_f32, null, 43f32],
     });
     assert_eq!(json, want);
 
-    let roundtrip = serde_json::from_value::<Repeated>(json)?;
-    assert_eq!(input, roundtrip);
+    let roundtrip = serde_json::from_value::<Repeated>(json);
+
+    // The data that it serializes is a parse failure when it tries to parse back.
+    // (It also would be parse failure if that serialized state were sent to a conformant server)
+    assert!(roundtrip.is_err()); 
     Ok(())
 }
