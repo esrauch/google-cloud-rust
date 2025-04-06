@@ -106,8 +106,6 @@ fn serialize_in_repeated() -> Result {
         )],
     };
     let json = serde_json::to_value(&input)?;
-
-    // The serialize state emits null for Infinity and NaN values
     let want = json!({
         "fieldDouble":  [42_f64],
         "fieldFloat":   [42_f32],
